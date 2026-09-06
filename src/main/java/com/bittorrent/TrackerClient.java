@@ -12,7 +12,12 @@ public class TrackerClient {
     }
 
     public List<PeerAddress> getPeers(TorrentInfo torrent, byte[] myPeerId, int port, long uploaded, long downloaded, long left) {
-        // TODO: Implement HTTP GET request and parse compact peer response (Milestone 3)
+        // TODO: Implement HTTP GET request and pass the response body to parseTrackerResponse()
+        throw new UnsupportedOperationException("Not implemented yet.");
+    }
+
+    public List<PeerAddress> parseTrackerResponse(byte[] responseBytes) {
+        // TODO: Implement tracker response parsing and compact peers extraction (Milestone 3)
         // Remember to check for "failure reason" before parsing peers!
         throw new UnsupportedOperationException("Not implemented yet.");
     }
