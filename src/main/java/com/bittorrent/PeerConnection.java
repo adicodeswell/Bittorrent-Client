@@ -157,7 +157,11 @@ public class PeerConnection implements Runnable {
         for (int byteIndex = 0; byteIndex < payload.length; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8; bitIndex++) {
                 if ((payload[byteIndex] & (0x80 >> bitIndex)) != 0) {
-                    peerPieces.set(byteIndex * 8 + bitIndex);
+                    int pieceIndex = byteIndex * 8 + bitIndex;
+                    peerPieces.set(pieceIndex);
+
+                    // tell the dispatcher this piece exists on the network
+                    pieceManager.recordPieceAvailability(pieceIndex);
                 }
             }
         }
@@ -171,10 +175,8 @@ public class PeerConnection implements Runnable {
         }
     }
 
-    // ----------------------------------------------------------------
-    // HAVE HANDLER
-    // ----------------------------------------------------------------
 
+    // HAVE HANDLER
     private void handleHave(byte[] payload) throws IOException {
         if (payload.length != 4) {
             throw new IllegalArgumentException("HAVE payload must be exactly 4 bytes");
@@ -187,6 +189,9 @@ public class PeerConnection implements Runnable {
 
         peerPieces.set(pieceIndex);
 
+        // Tell the dispatcher a peer just acquired this piece
+        pieceManager.recordPieceAvailability(pieceIndex);
+
         if (!amInterested) {
             System.out.println("Sending INTERESTED to " + peerAddress.ip());
             sendMessage(new PeerMessage(PeerMessage.MessageType.INTERESTED, null));
@@ -194,10 +199,8 @@ public class PeerConnection implements Runnable {
         }
     }
 
-    // ----------------------------------------------------------------
-    // SENDING MESSAGES (Milestone 6)
-    // ----------------------------------------------------------------
 
+    // SENDING MESSAGES (Milestone 6)
     public void sendMessage(PeerMessage message) throws IOException {
         int payloadLength = (message.payload() == null) ? 0 : message.payload().length;
         out.writeInt(1 + payloadLength);
@@ -209,16 +212,14 @@ public class PeerConnection implements Runnable {
         out.flush();
     }
 
-    // ----------------------------------------------------------------
-    // REQUESTING AND RECEIVING BLOCKS (Milestone 6)
-    // ----------------------------------------------------------------
 
+    // REQUESTING AND RECEIVING BLOCKS (Milestone 6)
     private void requestNextBlock() throws IOException {
         if (peerChoking) return;
 
         // if we do not have an assignment, ask the dispatcher for one
         if (currentPieceIndex == -1) {
-            currentPieceIndex = pieceManager.getNextPiece();
+            currentPieceIndex = pieceManager.getNextPiece(peerPieces);
             currentBlockOffset = 0;
         }
 
