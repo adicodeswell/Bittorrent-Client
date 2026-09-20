@@ -297,17 +297,16 @@ public class PeerConnection implements Runnable {
             // 4. Compare them
             if (java.util.Arrays.equals(calculatedHash, expectedHash)) {
                 System.out.println(" Piece " + index + " verified successfully!");
-                currentPieceIndex++;
+                
+                // Tell the central manager this piece is done!
+                pieceManager.markCompleted(currentPieceIndex);
+                
+                // Reset our assignment so requestNextBlock() will ask for a new one
+                currentPieceIndex = -1;
                 currentBlockOffset = 0;
             } else {
                 System.err.println("Piece " + index + " FAILED hash check! Dropping peer.");
 
-                // saying the pieceManager that this piece is done
-                pieceManager.markCompleted(currentPieceIndex);
-
-                // reset assignment so requestNextBlock() will ask for a new one
-                currentPieceIndex = -1;
-                currentBlockOffset = 0;
                 // If they send bad data, we cut them off to protect our download
                 throw new IOException("Received corrupt piece from peer");
             }
@@ -334,7 +333,7 @@ public class PeerConnection implements Runnable {
             readLoop();
 
         } catch (IOException e) {
-            System.err.println("Connection error with " + peerAddress.ip() + ": " + e.toString());
+            // Ignore normal disconnects in console output if preferred, but keeping it for debugging
         } finally {
             close();
         }
@@ -343,11 +342,11 @@ public class PeerConnection implements Runnable {
     private void close() {
         try {
             if (socket != null && !socket.isClosed()) socket.close();
-        } catch (IOException ignored) {
-            // Put assigned piece back to the pool for another peer to grab
-            if(currentPieceIndex != -1) {
-                pieceManager.markMissing(currentPieceIndex);
-            }
+        } catch (IOException ignored) {}
+        
+        // Put assigned piece back to the pool for another peer to grab
+        if (currentPieceIndex != -1) {
+            pieceManager.markMissing(currentPieceIndex);
         }
     }
 
