@@ -2,6 +2,7 @@ package com.bittorrent;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 public class Main {
 
@@ -12,15 +13,53 @@ public class Main {
             System.exit(1);
         }
 
-        try {
-            TorrentInfo torrent = loadTorrent(args[0]);
+            try {
+                // Parse the .torrent file (already working from Milestone 2)
+                TorrentInfo torrent = loadTorrent(args[0]);
+                printTorrentInfo(torrent);
 
-            printTorrentInfo(torrent);
+                // Ask the tracker for peers
+                TrackerClient tracker = new TrackerClient();
+                List<TrackerClient.PeerAddress> peers = tracker.getPeers(
+                        torrent, 6881, 0, 0, torrent.getFileLength()
+                );
+                System.out.println("Found " + peers.size() + " peers from tracker.");
 
-        } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
-            System.exit(1);
-        }
+                // For now, trying to handshake with just the first peer
+                if (peers.isEmpty()) {
+                    System.out.println("No peers available.");
+                    return;
+                }
+
+                PieceManager pieceManager = new PieceManager(torrent.getPieceHashes().size());
+
+                // Initialize one FileManager for all threads to share
+                FileManager fileManager = new FileManager(".", torrent);
+                System.out.println("Launching concurrent connections to  " + peers.size() + " peers...");
+
+                // Try peers one by one until we get a successful download
+                for (TrackerClient.PeerAddress peer : peers) {
+                    PeerConnection connection = new PeerConnection(
+                            peer, tracker.getPeerId(), torrent, fileManager, pieceManager
+                    );
+
+                    // Launch instantly in the background and move to the next peer
+                    Thread.ofVirtual().start(connection);
+                }
+
+                // Keep the main thread alive until the download is completely finished
+                while (!pieceManager.isFinished()) {
+                    Thread.sleep(1000); // Pause for 1 second, then check again
+                }
+
+                // Once the loop breaks, we are done!
+                System.out.println("\n100% DOWNLOAD COMPLETE!");
+                System.out.println("File saved to your project directory.");
+
+            } catch (Exception e) {
+                System.err.println("Error: " + e.getMessage());
+                System.exit(1);
+            }
     }
 
     private static TorrentInfo loadTorrent(String path) throws Exception {

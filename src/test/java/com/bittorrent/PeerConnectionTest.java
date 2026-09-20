@@ -7,6 +7,8 @@ import java.io.DataOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -26,56 +28,109 @@ public class PeerConnectionTest {
     @Test
     public void testSuccessfulHandshake() throws Exception {
         byte[] expectedInfoHash = new byte[20];
-        expectedInfoHash[0] = 1; // Dummy hash
+        expectedInfoHash[0] = 1; // Dummy non-zero hash
 
         byte[] clientPeerId = "CLIENT_ID_1234567890".getBytes(StandardCharsets.US_ASCII);
         byte[] serverPeerId = "SERVER_ID_0987654321".getBytes(StandardCharsets.US_ASCII);
 
-        // Spin up a local dummy server to act as a Peer
+        // Tracks whether the server received a valid handshake from our client
+        AtomicBoolean serverReceivedValidHandshake = new AtomicBoolean(false);
+
         try (ServerSocket serverSocket = new ServerSocket(0)) {
             int port = serverSocket.getLocalPort();
-            
+
             // Run server logic in a background thread
             Thread serverThread = new Thread(() -> {
                 try (Socket clientSocket = serverSocket.accept();
                      DataInputStream in = new DataInputStream(clientSocket.getInputStream());
                      DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
-                    
-                    // 1. Read handshake from our client
-                    byte[] receivedHandshake = new byte[68];
-                    in.readFully(receivedHandshake);
-                    
-                    assertEquals(19, receivedHandshake[0]);
-                    
-                    // 2. Send back a valid handshake (matching info hash)
+
+                    // Read the 68-byte handshake from our client
+                    byte[] received = new byte[68];
+                    in.readFully(received);
+
+                    // Validate what our client sent
+                    boolean validProtocol   = received[0] == 19;
+                    boolean validProtocName = new String(received, 1, 19, StandardCharsets.US_ASCII)
+                                                .equals("BitTorrent protocol");
+                    byte[] receivedInfoHash = Arrays.copyOfRange(received, 28, 48);
+                    boolean validInfoHash   = Arrays.equals(receivedInfoHash, expectedInfoHash);
+
+                    serverReceivedValidHandshake.set(validProtocol && validProtocName && validInfoHash);
+
+                    // Send back a valid matching handshake
                     out.write(generateMockHandshake(expectedInfoHash, serverPeerId));
                     out.flush();
 
                 } catch (Exception e) {
-                    throw new RuntimeException(e);
+                    // Server closed — expected after client finishes
                 }
             });
             serverThread.start();
 
-            // Run our actual client logic
+            // Start our actual client connection
             TrackerClient.PeerAddress address = new TrackerClient.PeerAddress("127.0.0.1", port);
-            PeerConnection connection = new PeerConnection(address, expectedInfoHash, clientPeerId);
             
-            // For testing, we just want to ensure run() doesn't throw an exception 
-            // when it receives a valid handshake.
-            assertDoesNotThrow(() -> {
-                // In a real scenario, run() will loop infinitely reading messages.
-                // For this test, you might need to structure your run() to be testable, 
-                // or have a separate performHandshake() method.
-                // Assuming run() connects, handshakes, and then blocks reading.
-                // We'll interrupt the thread after 1 second if it blocks successfully.
-                
-                Thread clientThread = new Thread(connection);
-                clientThread.start();
-                Thread.sleep(1000);
-                assertTrue(clientThread.isAlive(), "Client should be blocking on read after successful handshake");
-                clientThread.interrupt();
+            // Dummy TorrentInfo for testing
+            TorrentInfo dummyTorrent = new TorrentInfo(expectedInfoHash, java.util.Collections.emptyList(), 0, 0, "", "", java.util.Collections.emptyList());
+            PeerConnection connection = new PeerConnection(address, clientPeerId, dummyTorrent, null, null);
+
+            Thread clientThread = Thread.ofVirtual().start(connection);
+
+            // Wait for both sides to finish (max 5 seconds)
+            serverThread.join(5000);
+            clientThread.join(5000);
+
+            // Assert that the server confirmed our client sent a correct handshake
+            assertTrue(serverReceivedValidHandshake.get(),
+                    "Client must send a valid 68-byte handshake with correct protocol name and infoHash");
+        }
+    }
+
+    @Test
+    public void testHandshakeInfoHashMismatch() throws Exception {
+        byte[] ourInfoHash   = new byte[20];
+        ourInfoHash[0] = 1;
+
+        byte[] wrongInfoHash = new byte[20];
+        wrongInfoHash[0] = 99; // Different — simulates a wrong torrent
+
+        byte[] clientPeerId = "CLIENT_ID_1234567890".getBytes(StandardCharsets.US_ASCII);
+        byte[] serverPeerId = "SERVER_ID_0987654321".getBytes(StandardCharsets.US_ASCII);
+
+        try (ServerSocket serverSocket = new ServerSocket(0)) {
+            int port = serverSocket.getLocalPort();
+
+            // Server replies with a MISMATCHED infoHash
+            Thread serverThread = new Thread(() -> {
+                try (Socket clientSocket = serverSocket.accept();
+                     DataInputStream in = new DataInputStream(clientSocket.getInputStream());
+                     DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
+
+                    byte[] received = new byte[68];
+                    in.readFully(received);
+
+                    // Respond with wrong infoHash to simulate a bad peer
+                    out.write(generateMockHandshake(wrongInfoHash, serverPeerId));
+                    out.flush();
+
+                } catch (Exception ignored) {}
             });
+            serverThread.start();
+
+            TrackerClient.PeerAddress address = new TrackerClient.PeerAddress("127.0.0.1", port);
+            TorrentInfo dummyTorrent = new TorrentInfo(ourInfoHash, java.util.Collections.emptyList(), 0, 0, "", "", java.util.Collections.emptyList());
+            PeerConnection connection = new PeerConnection(address, clientPeerId, dummyTorrent, null, null);
+
+            Thread clientThread = Thread.ofVirtual().start(connection);
+
+            // Client should detect the mismatch and disconnect quickly
+            clientThread.join(5000);
+            serverThread.join(5000);
+
+            // If we reach here without hanging, the client correctly rejected the peer
+            assertFalse(clientThread.isAlive(),
+                    "Client must disconnect cleanly after detecting infoHash mismatch");
         }
     }
 }

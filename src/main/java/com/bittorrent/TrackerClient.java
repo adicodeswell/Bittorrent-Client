@@ -16,7 +16,9 @@ public class TrackerClient {
     private final byte[] peerId;
 
     public TrackerClient() {
-        this.httpClient = HttpClient.newHttpClient();
+        this.httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .build();
         this.peerId = generatePeerId();
     }
 
@@ -28,6 +30,7 @@ public class TrackerClient {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
+                .header("User-Agent", "Transmission/3.00")
                 .GET()
                 .build();
 
@@ -79,7 +82,6 @@ public class TrackerClient {
         return peerId;
     }
 
-    // ---------- PRIVATE HELPERS ----------
 
     private String buildAnnounceUrl(TorrentInfo torrent, int port, long uploaded, long downloaded, long left) {
         return torrent.getAnnounceUrl()
@@ -96,12 +98,10 @@ public class TrackerClient {
     private static String urlEncode(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
-            // Unreserved characters pass through unchanged
             if ((b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') ||
                 (b >= '0' && b <= '9') || b == '-' || b == '_' || b == '.' || b == '~') {
                 sb.append((char) b);
             } else {
-                // All other bytes become %XX (b & 0xFF converts signed byte to unsigned int)
                 sb.append(String.format("%%%02X", b & 0xFF));
             }
         }
@@ -110,7 +110,7 @@ public class TrackerClient {
 
     private static byte[] generatePeerId() {
         byte[] id = new byte[20];
-        byte[] prefix = "-MC0001-".getBytes(StandardCharsets.US_ASCII);
+        byte[] prefix = "-TR3000-".getBytes(StandardCharsets.US_ASCII);
         System.arraycopy(prefix, 0, id, 0, prefix.length);
 
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
