@@ -35,6 +35,15 @@ public class Main {
 
                 // Initialize one FileManager for all threads to share
                 FileManager fileManager = new FileManager(".", torrent);
+
+                // 1. Scan the disk to see what we already have
+                checkExistingFiles(torrent, fileManager, pieceManager);
+
+                // 2. If the scan proves we have 100% of the file, just exit
+                if (pieceManager.isFinished()) {
+                    System.out.println("🎉 File is already fully downloaded! 🎉");
+                    return;
+                }
                 System.out.println("Launching concurrent connections to  " + peers.size() + " peers...");
 
                 // Try peers one by one until we get a successful download
@@ -80,6 +89,38 @@ public class Main {
         byte[] data = Files.readAllBytes(torrentPath);
 
         return TorrentInfo.parse(data);
+    }
+
+    private static void checkExistingFiles(TorrentInfo torrent, FileManager fileManager, PieceManager pieceManager) {
+        System.out.println("Scanning existing files to resume download...");
+        int validPieces = 0;
+        int totalPieces = torrent.getPieceHashes().size();
+
+        try {
+            // Reuse a single MessageDigest instance for speed
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-1");
+
+            for (int i = 0; i < totalPieces; i++) {
+                byte[] pieceData = fileManager.readPiece(i);
+                byte[] calculatedHash = md.digest(pieceData);
+                byte[] expectedHash = torrent.getPieceHashes().get(i);
+
+                // If the hash matches, the piece is valid and already on disk!
+                if (java.util.Arrays.equals(calculatedHash, expectedHash)) {
+                    pieceManager.markCompleted(i);
+                    validPieces++;
+                }
+
+                // Print a progress update every 10% so we know it hasn't frozen
+                if (i > 0 && i % (totalPieces / 10) == 0) {
+                    System.out.println("Scan progress: " + (i * 100 / totalPieces) + "%");
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error scanning existing files: " + e.getMessage());
+        }
+
+        System.out.println("Scan complete! Found " + validPieces + " valid pieces.");
     }
 
     private static void printTorrentInfo(TorrentInfo torrent) {
