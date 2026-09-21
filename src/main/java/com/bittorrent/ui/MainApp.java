@@ -10,7 +10,7 @@ public class MainApp extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/MainWindow.fxml"));
-        BorderPane root = loader.load();
+        javafx.scene.Parent root = loader.load();
 
         Scene scene = new Scene(root);
         primaryStage.setTitle("BitTorrent Client");
