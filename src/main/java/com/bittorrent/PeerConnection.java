@@ -36,7 +36,10 @@ public class PeerConnection implements Runnable {
 
     // Block request tracking
     private int currentPieceIndex = -1;
-    private int currentBlockOffset = 0;
+    private int requestedBlockOffset = 0;
+    private int receivedBlockOffset = 0;
+    private int pendingRequests = 0;
+    private final int MAX_PIPELINE = 5;
     private static final int BLOCK_SIZE = 16384; // 16 KB
 
     public PeerConnection(TrackerClient.PeerAddress peerAddress, byte[] peerId,
@@ -123,11 +126,10 @@ public class PeerConnection implements Runnable {
     // MESSAGE DISPATCHER
     private void handleMessage(PeerMessage message) throws IOException {
         switch (message.type()) {
-            case CHOKE          -> peerChoking    = true;
+            case CHOKE          -> peerChoking = true;
             case UNCHOKE        -> {
                 peerChoking = false;
-                System.out.println("Unchoked by " + peerAddress.ip() + " - Requesting data!");
-                requestNextBlock();
+                fillPipeline();
             }
             case INTERESTED     -> peerInterested = true;
             case NOT_INTERESTED -> peerInterested = false;
@@ -141,7 +143,7 @@ public class PeerConnection implements Runnable {
     }
 
     // Getter and Choke controllers
-    public boolean isClosed() { return socket.isClosed(); }
+    public boolean isClosed() { return socket == null || socket.isClosed(); }
     public boolean isPeerInterested() { return peerInterested; }
 
     public int getAndResetDownloadedBytes() {
@@ -175,7 +177,7 @@ public class PeerConnection implements Runnable {
         if (length > 131072) return;
 
         // Make sure we actually have the piece they are asking for!
-        if (!pieceManager.getCompletedPieces().get(index)) return;
+        if (pieceManager != null && !pieceManager.getCompletedPieces().get(index)) return;
 
         // Fetch the 16KB block from our hard drive
         byte[] blockData = fileManager.readBlock(index, begin, length);
@@ -199,7 +201,9 @@ public class PeerConnection implements Runnable {
                     peerPieces.set(pieceIndex);
 
                     // tell the dispatcher this piece exists on the network
-                    pieceManager.recordPieceAvailability(pieceIndex);
+                    if (pieceManager != null) {
+                        pieceManager.recordPieceAvailability(pieceIndex);
+                    }
                 }
             }
         }
@@ -228,7 +232,9 @@ public class PeerConnection implements Runnable {
         peerPieces.set(pieceIndex);
 
         // Tell the dispatcher a peer just acquired this piece
-        pieceManager.recordPieceAvailability(pieceIndex);
+        if (pieceManager != null) {
+            pieceManager.recordPieceAvailability(pieceIndex);
+        }
 
         if (!amInterested) {
             System.out.println("Sending INTERESTED to " + peerAddress.ip());
@@ -252,13 +258,17 @@ public class PeerConnection implements Runnable {
 
 
     // REQUESTING AND RECEIVING BLOCKS (Milestone 6)
-    private void requestNextBlock() throws IOException {
+    private void fillPipeline() throws IOException {
         if (peerChoking) return;
 
         // if we do not have an assignment, ask the dispatcher for one
         if (currentPieceIndex == -1) {
-            currentPieceIndex = pieceManager.getNextPiece(peerPieces);
-            currentBlockOffset = 0;
+            if (pieceManager != null) {
+                currentPieceIndex = pieceManager.getNextPiece(peerPieces);
+            }
+            requestedBlockOffset = 0;
+            receivedBlockOffset = 0;
+            pendingRequests = 0;
         }
 
         // if dispatcher returned -1, we are done downloading the piece
@@ -281,15 +291,20 @@ public class PeerConnection implements Runnable {
             }
         }
 
-        int length = Math.min(BLOCK_SIZE, pieceSize - currentBlockOffset);
+        while (pendingRequests < MAX_PIPELINE && requestedBlockOffset < pieceSize) {
+            int length = Math.min(BLOCK_SIZE, pieceSize - requestedBlockOffset);
 
-        byte[] payload = new byte[12];
-        ByteBuffer buffer = ByteBuffer.wrap(payload);
-        buffer.putInt(currentPieceIndex);
-        buffer.putInt(currentBlockOffset);
-        buffer.putInt(length);
+            byte[] payload = new byte[12];
+            ByteBuffer buffer = ByteBuffer.wrap(payload);
+            buffer.putInt(currentPieceIndex);
+            buffer.putInt(requestedBlockOffset);
+            buffer.putInt(length);
 
-        sendMessage(new PeerMessage(PeerMessage.MessageType.REQUEST, payload));
+            sendMessage(new PeerMessage(PeerMessage.MessageType.REQUEST, payload));
+            
+            requestedBlockOffset += length;
+            pendingRequests++;
+        }
     }
 
     private void handlePiece(byte[] payload) throws IOException {
@@ -303,7 +318,8 @@ public class PeerConnection implements Runnable {
         // Save block data to the file manager
         fileManager.writePiece(index, begin, blockData);
 
-        currentBlockOffset += blockData.length;
+        receivedBlockOffset += blockData.length;
+        pendingRequests--;
         // checking download speed
         downloadedBytesThisPeriod += blockData.length;
         if (pieceManager != null) {
@@ -322,7 +338,7 @@ public class PeerConnection implements Runnable {
         }
 
         // Check if the piece is fully downloaded
-        if (currentBlockOffset >= pieceSize) {
+        if (receivedBlockOffset >= pieceSize) {
             System.out.println("Finished downloading piece " + index + " - Verifying hash...");
 
             // 1. Read the completed piece back from disk
@@ -346,9 +362,11 @@ public class PeerConnection implements Runnable {
                 // Tell the central manager this piece is done!
                 pieceManager.markCompleted(currentPieceIndex);
                 
-                // Reset our assignment so requestNextBlock() will ask for a new one
+                // Reset our assignment so fillPipeline() will ask for a new one
                 currentPieceIndex = -1;
-                currentBlockOffset = 0;
+                requestedBlockOffset = 0;
+            receivedBlockOffset = 0;
+            pendingRequests = 0;
             } else {
                 System.err.println("Piece " + index + " FAILED hash check! Dropping peer.");
 
@@ -358,7 +376,7 @@ public class PeerConnection implements Runnable {
         }
 
         // Ask for next block immediately
-        requestNextBlock();
+        fillPipeline();
     }
 
     // ----------------------------------------------------------------

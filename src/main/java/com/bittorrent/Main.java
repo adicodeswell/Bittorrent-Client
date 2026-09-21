@@ -58,11 +58,36 @@ public class Main {
                 Thread.ofVirtual().start(connection);
             }
 
-            // Choking algorithm thread
+            // Keep track of peers we've already tried
+            java.util.Set<String> knownIps = java.util.concurrent.ConcurrentHashMap.newKeySet();
+            for (TrackerClient.PeerAddress p : peers) knownIps.add(p.ip());
+            
+            // Choking algorithm and peer replenishment thread
             Thread.ofVirtual().start(() -> {
+                long lastTrackerUpdate = System.currentTimeMillis();
+                
                 while (true) {
                     try {
                         Thread.sleep(10000); 
+                        
+                        // -- 1. Replenish Peers if we drop too low! --
+                        long aliveCount = activeConnections.stream().filter(p -> !p.isClosed()).count();
+                        if (aliveCount < 15 && (System.currentTimeMillis() - lastTrackerUpdate > 30000)) {
+                            lastTrackerUpdate = System.currentTimeMillis();
+                            try {
+                                if (uiModel != null) uiModel.setStatus("Asking tracker for more peers...");
+                                List<TrackerClient.PeerAddress> newPeers = tracker.getPeers(torrent, 6881, 0, 0, torrent.getFileLength());
+                                for (TrackerClient.PeerAddress peer : newPeers) {
+                                    if (knownIps.add(peer.ip())) {
+                                        PeerConnection connection = new PeerConnection(peer, tracker.getPeerId(), torrent, fileManager, pieceManager);
+                                        activeConnections.add(connection);
+                                        Thread.ofVirtual().start(connection);
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+                        }
+
+                        // -- 2. Tit-for-Tat Choking Algorithm --
                         java.util.List<PeerConnection> interestedPeers = new java.util.ArrayList<>();
                         for (PeerConnection p : activeConnections) {
                             if (!p.isClosed() && p.isPeerInterested()) {
