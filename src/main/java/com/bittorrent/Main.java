@@ -30,8 +30,12 @@ public class Main {
                 return;
             }
 
+            // Find the user's Downloads folder to prevent Windows Administrator permission errors
+            String downloadsDir = System.getProperty("user.home") + java.io.File.separator + "Downloads";
+            System.out.println("Saving download to: " + downloadsDir);
+            
             PieceManager pieceManager = new PieceManager(torrent.getPieceHashes().size());
-            FileManager fileManager = new FileManager(".", torrent);
+            FileManager fileManager = new FileManager(downloadsDir, torrent);
 
             // 1. Scan the disk to see what we already have
             checkExistingFiles(torrent, fileManager, pieceManager, uiModel);
