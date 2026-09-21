@@ -1,1 +1,5 @@
 target/
+docs/
+*.iso
+*.mp4
+*.torrent

@@ -1,0 +1,74 @@
+name: Build and Release Native Apps
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger only when you push a tag like v1.0.0
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: BitTorrentClient-Windows.exe
+            jpackage_type: exe
+          - os: macos-latest
+            artifact_name: BitTorrentClient-Mac.dmg
+            jpackage_type: dmg
+          - os: ubuntu-latest
+            artifact_name: BitTorrentClient-Linux.deb
+            jpackage_type: deb
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build Fat JAR
+        run: mvn clean package -DskipTests
+
+      - name: Package Native Application
+        run: |
+          jpackage \
+            --type ${{ matrix.jpackage_type }} \
+            --name "BitTorrentClient" \
+            --input target/ \
+            --main-jar bittorrent-client-1.0-SNAPSHOT.jar \
+            --main-class com.bittorrent.ui.AppLauncher \
+            --dest dist
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/*
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

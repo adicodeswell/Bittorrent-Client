@@ -4,7 +4,8 @@ public record PeerMessage(MessageType type, byte[] payload) {
 
     public enum MessageType {
         CHOKE(0), UNCHOKE(1), INTERESTED(2), NOT_INTERESTED(3),
-        HAVE(4), BITFIELD(5), REQUEST(6), PIECE(7), CANCEL(8);
+        HAVE(4), BITFIELD(5), REQUEST(6), PIECE(7), CANCEL(8),
+        PORT(9), EXTENDED(20), UNKNOWN(-1);
 
         private final int id;
 
@@ -20,12 +21,12 @@ public record PeerMessage(MessageType type, byte[] payload) {
             for (MessageType type : values()) {
                 if (type.id == id) return type;
             }
-            throw new IllegalArgumentException("Unknown message ID: " + id);
+            return UNKNOWN;
         }
     }
 
     public static PeerMessage decode(int messageId, byte[] payload) {
-        // TODO: Decode raw message bytes into PeerMessage object (Milestone 5)
-        throw new UnsupportedOperationException("Not implemented yet.");
+        MessageType type = MessageType.fromId(messageId);
+        return new PeerMessage(type, payload);
     }
 }

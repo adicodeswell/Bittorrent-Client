@@ -1,36 +1,76 @@
 package com.bittorrent;
 
 import java.util.BitSet;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class PieceManager {
+    private final int totalPieces;
+    private final BitSet completedPieces = new BitSet();
+    private final BitSet pendingPieces = new BitSet();
+    private final int[] pieceFrequency;
+    private final java.util.concurrent.atomic.AtomicLong totalBytesDownloaded = new java.util.concurrent.atomic.AtomicLong(0);
 
-    private final TorrentInfo torrentInfo;
-    private final FileManager fileManager;
-    
-    // Tracks pieces completed locally
-    private final BitSet localPieces = new BitSet();
-    // Tracks pieces available on connected peers
-    private final Map<PeerConnection, BitSet> peerPieces = new ConcurrentHashMap<>();
-
-    public PieceManager(TorrentInfo torrentInfo, FileManager fileManager) {
-        this.torrentInfo = torrentInfo;
-        this.fileManager = fileManager;
+    public PieceManager(int totalPieces) {
+        this.totalPieces = totalPieces;
+        this.pieceFrequency = new int[totalPieces];
     }
 
-    public synchronized void blockReceived(PeerConnection peer, int pieceIndex, int begin, byte[] blockData) {
-        // TODO: Milestone 7 - Store block in pre-allocated buffer
-        // Verify SHA-1 if piece is complete. Write to FileManager if valid.
+    public void recordBytesDownloaded(int bytes) {
+        totalBytesDownloaded.addAndGet(bytes);
     }
 
-    public synchronized PeerMessage getNextRequest(PeerConnection peer) {
-        // TODO: Milestone 8 & 10 - Evaluate available/in-progress pieces.
-        // Return a new REQUEST message (use simplest selection first, rarest-first later).
-        return null;
+    public long getTotalBytesDownloaded() {
+        return totalBytesDownloaded.get();
     }
 
-    public synchronized void handlePeerDisconnect(PeerConnection peer) {
-        // TODO: Milestone 8 - Re-assign any in-progress pieces from this peer
+    // Called every time a peer tells us they have a piece
+    public synchronized void recordPieceAvailability(int index) {
+        if (index >= 0 && index < totalPieces) {
+            pieceFrequency[index]++;
+        }
+    }
+
+    // Thread-safe method to get the next missing piece
+    public synchronized int getNextPiece(BitSet peerPieces) {
+        int rarestPiece = -1;
+        int minAvailability = Integer.MAX_VALUE;
+
+        for (int i = 0; i < totalPieces; i++) {
+            // 1. Do we need it?
+            // 2. Is nobody else currently downloading it?
+            // 3. Does THIS specific peer actually have it?
+            if (!completedPieces.get(i) && !pendingPieces.get(i) && peerPieces.get(i)) {
+
+                // 4. Is it the rarest one we've seen so far?
+                if (pieceFrequency[i] < minAvailability) {
+                    minAvailability = pieceFrequency[i];
+                    rarestPiece = i;
+                }
+            }
+        }
+
+        if (rarestPiece != -1) {
+            pendingPieces.set(rarestPiece);
+        }
+        return rarestPiece; // Returns -1 if no pieces match
+    }
+
+    public synchronized BitSet getCompletedPieces() {
+        return (BitSet) completedPieces.clone(); // Clone ensures thread safety
+    }
+
+    public synchronized void markCompleted(int index) {
+        pendingPieces.clear(index);
+        completedPieces.set(index);
+    }
+
+    // If a peer disconnects or sends bad data, we put the piece back in the pool
+    public synchronized void markMissing(int index) {
+        if (index != -1) {
+            pendingPieces.clear(index);
+        }
+    }
+
+    public synchronized boolean isFinished() {
+        return completedPieces.cardinality() == totalPieces;
     }
 }
