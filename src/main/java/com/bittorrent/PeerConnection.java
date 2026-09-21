@@ -207,11 +207,9 @@ public class PeerConnection implements Runnable {
                 }
             }
         }
-        System.out.println("peer has " + peerPieces.cardinality() + " pieces");
 
-        // Express interest if the peer has any pieces we want (for now, any piece)
-        if (!amInterested && peerPieces.cardinality() > 0) {
-            System.out.println("Sending INTERESTED to " + peerAddress.ip());
+        // Express interest if we are still downloading and they have pieces
+        if (!amInterested && pieceManager != null && !pieceManager.isFinished() && peerPieces.cardinality() > 0) {
             sendMessage(new PeerMessage(PeerMessage.MessageType.INTERESTED, null));
             amInterested = true;
         }
@@ -236,8 +234,7 @@ public class PeerConnection implements Runnable {
             pieceManager.recordPieceAvailability(pieceIndex);
         }
 
-        if (!amInterested) {
-            System.out.println("Sending INTERESTED to " + peerAddress.ip());
+        if (!amInterested && pieceManager != null && !pieceManager.isFinished()) {
             sendMessage(new PeerMessage(PeerMessage.MessageType.INTERESTED, null));
             amInterested = true;
         }
@@ -273,7 +270,6 @@ public class PeerConnection implements Runnable {
 
         // if dispatcher returned -1, we are done downloading the piece
         if (currentPieceIndex == -1) {
-            System.out.println("No more pieces to download. We are finished with this peer!");
             return;
         }
         
@@ -339,7 +335,6 @@ public class PeerConnection implements Runnable {
 
         // Check if the piece is fully downloaded
         if (receivedBlockOffset >= pieceSize) {
-            System.out.println("Finished downloading piece " + index + " - Verifying hash...");
 
             // 1. Read the completed piece back from disk
             byte[] downloadedBytes = fileManager.readPiece(index);
@@ -357,7 +352,6 @@ public class PeerConnection implements Runnable {
 
             // 4. Compare them
             if (java.util.Arrays.equals(calculatedHash, expectedHash)) {
-                System.out.println(" Piece " + index + " verified successfully!");
                 
                 // Tell the central manager this piece is done!
                 pieceManager.markCompleted(currentPieceIndex);
