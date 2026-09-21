@@ -22,11 +22,14 @@ public class PeerConnection implements Runnable {
     private DataInputStream in;
     private DataOutputStream out;
 
+    // seeding related
+    private int downloadedBytesThisPeriod = 0;
+
     // Tracks which pieces this specific peer has
     private final BitSet peerPieces = new BitSet();
 
     // State variables
-    private boolean amChoking     = true;
+    private boolean amChoking = true; // We choke them by default!
     private boolean amInterested  = false;
     private boolean peerChoking   = true;
     private boolean peerInterested = false;
@@ -45,10 +48,7 @@ public class PeerConnection implements Runnable {
         this.pieceManager = pieceManager;
     }
 
-    // ----------------------------------------------------------------
     // CONNECTION
-    // ----------------------------------------------------------------
-
     public void connect() throws IOException {
         socket = new Socket();
         socket.connect(new InetSocketAddress(peerAddress.ip(), peerAddress.port()), 5_000);
@@ -58,10 +58,7 @@ public class PeerConnection implements Runnable {
         out = new DataOutputStream(socket.getOutputStream());
     }
 
-    // ----------------------------------------------------------------
     // HANDSHAKE  (Milestone 4)
-    // ----------------------------------------------------------------
-
     private byte[] buildHandshake() {
         byte[] handshake = new byte[68];
         int offset = 0;
@@ -97,10 +94,7 @@ public class PeerConnection implements Runnable {
         return Arrays.equals(theirInfoHash, torrentInfo.getInfoHash());
     }
 
-    // ----------------------------------------------------------------
     // MESSAGE READING LOOP  (Milestone 5)
-    // ----------------------------------------------------------------
-
     private void readLoop() throws IOException {
         while (!Thread.currentThread().isInterrupted()) {
 
@@ -126,10 +120,7 @@ public class PeerConnection implements Runnable {
         }
     }
 
-    // ----------------------------------------------------------------
     // MESSAGE DISPATCHER
-    // ----------------------------------------------------------------
-
     private void handleMessage(PeerMessage message) throws IOException {
         switch (message.type()) {
             case CHOKE          -> peerChoking    = true;
@@ -149,7 +140,32 @@ public class PeerConnection implements Runnable {
         }
     }
 
+    // Getter and Choke controllers
+    public boolean isClosed() { return socket.isClosed(); }
+    public boolean isPeerInterested() { return peerInterested; }
+
+    public int getAndResetDownloadedBytes() {
+        int bytes = downloadedBytesThisPeriod;
+        downloadedBytesThisPeriod = 0;
+        return bytes;
+    }
+
+    public void unchoke() throws IOException {
+        if (amChoking) {
+            amChoking = false;
+            sendMessage(new PeerMessage(PeerMessage.MessageType.UNCHOKE, null));
+        }
+    }
+
+    public void choke() throws IOException {
+        if (!amChoking) {
+            amChoking = true;
+            sendMessage(new PeerMessage(PeerMessage.MessageType.CHOKE, null));
+        }
+    }
+
     private void handleRequest(byte[] payload) throws IOException {
+        if(amChoking) return; // if we are choking, ignore theie request
         ByteBuffer buffer = ByteBuffer.wrap(payload);
         int index = buffer.getInt();
         int begin = buffer.getInt();
@@ -288,6 +304,9 @@ public class PeerConnection implements Runnable {
         fileManager.writePiece(index, begin, blockData);
 
         currentBlockOffset += blockData.length;
+        // checking download speed
+        downloadedBytesThisPeriod += blockData.length;
+
 
         // Calculate piece size for the current piece (last piece might be smaller)
         long totalPieces = (torrentInfo.getTotalLength() + torrentInfo.getPieceLength() - 1) / torrentInfo.getPieceLength();

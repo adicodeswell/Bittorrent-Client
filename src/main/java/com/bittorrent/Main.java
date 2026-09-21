@@ -46,15 +46,57 @@ public class Main {
                 }
                 System.out.println("Launching concurrent connections to  " + peers.size() + " peers...");
 
+                java.util.List<PeerConnection> activeConnections = new java.util.concurrent.CopyOnWriteArrayList<>();
+
                 // Try peers one by one until we get a successful download
                 for (TrackerClient.PeerAddress peer : peers) {
                     PeerConnection connection = new PeerConnection(
                             peer, tracker.getPeerId(), torrent, fileManager, pieceManager
                     );
 
+                    activeConnections.add(connection); // Adding each connection to the list
+
                     // Launch instantly in the background and move to the next peer
                     Thread.ofVirtual().start(connection);
                 }
+
+                // This thread is for the choking algorithm
+                Thread.ofVirtual().start(() -> {
+                    while (true) {
+                        try {
+                            Thread.sleep(10000); // Wait 10 seconds
+
+                            // 1. Get all peers that want our data and are still connected
+                            java.util.List<PeerConnection> interestedPeers = new java.util.ArrayList<>();
+                            for (PeerConnection p : activeConnections) {
+                                if (!p.isClosed() && p.isPeerInterested()) {
+                                    interestedPeers.add(p);
+                                }
+                            }
+
+                            // 2. Sort them by download speed (Fastest first)
+                            interestedPeers.sort((a, b) ->
+                                    Integer.compare(b.getAndResetDownloadedBytes(), a.getAndResetDownloadedBytes())
+                            );
+
+                            // 3. Tit-for-Tat: Unchoke top 3, Optimistic Unchoke 1, Choke the rest!
+                            for (int i = 0; i < interestedPeers.size(); i++) {
+                                PeerConnection peer = interestedPeers.get(i);
+                                try {
+                                    if (i < 3) {
+                                        peer.unchoke(); // Reward the fastest 3 peers
+                                    } else if (i == 3) {
+                                        peer.unchoke(); // Optimistic unchoke for the 4th
+                                    } else {
+                                        peer.choke(); // Cut off the free riders
+                                    }
+                                } catch (Exception ignored) {}
+                            }
+                        } catch (InterruptedException e) {
+                            break;
+                        }
+                    }
+                });
 
                 // Keep the main thread alive until the download is completely finished
                 while (!pieceManager.isFinished()) {
