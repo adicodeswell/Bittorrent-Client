@@ -66,6 +66,26 @@ public class FileManager {
         return pieceData;
     }
 
+    public synchronized byte[] readBlock(int pieceIndex, int begin, int length) throws IOException {
+        byte[] blockData = new byte[length];
+        long globalOffset = (long) pieceIndex * torrentInfo.getPieceLength() + begin;
+        int bytesRead = 0;
+
+        while (bytesRead < length) {
+            FileSlice slice = findSlice(globalOffset + bytesRead);
+            if (slice == null) break;
+
+            long offsetWithinFile = (globalOffset + bytesRead) - slice.startOffset();
+            long bytesAvailable = slice.length() - offsetWithinFile;
+            int toRead = (int) Math.min(bytesAvailable, length - bytesRead);
+
+            slice.raf().seek(offsetWithinFile);
+            slice.raf().readFully(blockData, bytesRead, toRead);
+            bytesRead += toRead;
+        }
+        return blockData;
+    }
+
     public synchronized void writePiece(int pieceIndex, int blockOffset, byte[] blockData) throws IOException {
         // Calculate the byte offset of this block within the virtual concatenated stream
         long pieceStart = (long) pieceIndex * torrentInfo.getPieceLength() + blockOffset;

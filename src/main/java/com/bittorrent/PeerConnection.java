@@ -143,16 +143,38 @@ public class PeerConnection implements Runnable {
             case HAVE           -> handleHave(message.payload());
             case BITFIELD       -> handleBitfield(message.payload());
             case PIECE          -> handlePiece(message.payload());
-            case REQUEST        -> { /* Seeding — future */ }
+            case REQUEST        -> handleRequest(message.payload());
             case CANCEL         -> { /* Future */ }
             default             -> { /* Ignore EXTENDED, PORT, UNKNOWN, etc. */ }
         }
     }
 
-    // ----------------------------------------------------------------
-    // BITFIELD HANDLER
-    // ----------------------------------------------------------------
+    private void handleRequest(byte[] payload) throws IOException {
+        ByteBuffer buffer = ByteBuffer.wrap(payload);
+        int index = buffer.getInt();
+        int begin = buffer.getInt();
+        int length = buffer.getInt();
 
+        // Security check: Don't let malicious peers crash us by asking for 100MB blocks
+        if (length > 131072) return;
+
+        // Make sure we actually have the piece they are asking for!
+        if (!pieceManager.getCompletedPieces().get(index)) return;
+
+        // Fetch the 16KB block from our hard drive
+        byte[] blockData = fileManager.readBlock(index, begin, length);
+
+        // Pack it into a PIECE message (8 byte header + data)
+        ByteBuffer responseBuffer = ByteBuffer.allocate(8 + blockData.length);
+        responseBuffer.putInt(index);
+        responseBuffer.putInt(begin);
+        responseBuffer.put(blockData);
+
+        System.out.println("Uploading block " + begin + " of piece " + index + " to " + peerAddress.ip());
+        sendMessage(new PeerMessage(PeerMessage.MessageType.PIECE, responseBuffer.array()));
+    }
+
+    // BITFIELD HANDLER
     private void handleBitfield(byte[] payload) throws IOException {
         for (int byteIndex = 0; byteIndex < payload.length; byteIndex++) {
             for (int bitIndex = 0; bitIndex < 8; bitIndex++) {
@@ -330,6 +352,25 @@ public class PeerConnection implements Runnable {
                 close();
                 return;
             }
+
+            // Send our bitfield so the peer knows what we can upload!
+            if (pieceManager != null) {
+                java.util.BitSet myPieces = pieceManager.getCompletedPieces();
+                if (myPieces.cardinality() > 0) {
+                    int bitfieldLength = (torrentInfo.getPieceHashes().size() + 7) / 8;
+                    byte[] bitfield = new byte[bitfieldLength];
+
+                    // BitTorrent uses a bizarre Big-Endian bit mapping
+                    for (int i = 0; i < myPieces.length(); i++) {
+                        if (myPieces.get(i)) {
+                            bitfield[i / 8] |= (1 << (7 - (i % 8)));
+                        }
+                    }
+                    sendMessage(new PeerMessage(PeerMessage.MessageType.BITFIELD, bitfield));
+                }
+            }
+
+            readLoop();
 
             readLoop();
 

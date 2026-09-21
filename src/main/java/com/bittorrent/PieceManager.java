@@ -45,6 +45,10 @@ public class PieceManager {
         return rarestPiece; // Returns -1 if no pieces match
     }
 
+    public synchronized BitSet getCompletedPieces() {
+        return (BitSet) completedPieces.clone(); // Clone ensures thread safety
+    }
+
     public synchronized void markCompleted(int index) {
         pendingPieces.clear(index);
         completedPieces.set(index);
