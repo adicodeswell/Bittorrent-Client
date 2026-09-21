@@ -38,7 +38,7 @@ public class Main {
 
             // 2. If the scan proves we have 100% of the file, just exit
             if (pieceManager.isFinished()) {
-                System.out.println("🎉 File is already fully downloaded! 🎉");
+                System.out.println("100% DOWNLOAD COMPLETE! File is already fully downloaded.");
                 uiModel.setProgress(1.0);
                 uiModel.setStatus("Completed / Seeding");
                 uiModel.setSpeed("0 KB/s");
@@ -78,7 +78,7 @@ public class Main {
                         
                         // -- 1. Replenish Peers if we drop too low! --
                         long aliveCount = activeConnections.stream().filter(p -> !p.isClosed()).count();
-                        if (aliveCount < 15 && (System.currentTimeMillis() - lastTrackerUpdate > 30000)) {
+                        if (aliveCount < 40 && (System.currentTimeMillis() - lastTrackerUpdate > 30000) && !pieceManager.isFinished()) {
                             lastTrackerUpdate = System.currentTimeMillis();
                             try {
                                 if (uiModel != null) uiModel.setStatus("Asking tracker for more peers...");

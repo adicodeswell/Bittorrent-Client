@@ -39,7 +39,7 @@ public class PeerConnection implements Runnable {
     private int requestedBlockOffset = 0;
     private int receivedBlockOffset = 0;
     private int pendingRequests = 0;
-    private final int MAX_PIPELINE = 5;
+    private final int MAX_PIPELINE = 20;
     private static final int BLOCK_SIZE = 16384; // 16 KB
 
     public PeerConnection(TrackerClient.PeerAddress peerAddress, byte[] peerId,
@@ -354,13 +354,17 @@ public class PeerConnection implements Runnable {
             if (java.util.Arrays.equals(calculatedHash, expectedHash)) {
                 
                 // Tell the central manager this piece is done!
-                pieceManager.markCompleted(currentPieceIndex);
+                if (pieceManager != null) {
+                    pieceManager.markCompleted(index);
+                    System.out.println("Piece " + index + " downloaded and verified successfully. [" 
+                        + pieceManager.getCompletedPieces().cardinality() + "/" + torrentInfo.getPieceHashes().size() + "]");
+                }
                 
                 // Reset our assignment so fillPipeline() will ask for a new one
                 currentPieceIndex = -1;
                 requestedBlockOffset = 0;
-            receivedBlockOffset = 0;
-            pendingRequests = 0;
+                receivedBlockOffset = 0;
+                pendingRequests = 0;
             } else {
                 System.err.println("Piece " + index + " FAILED hash check! Dropping peer.");
 
