@@ -93,21 +93,25 @@ public class Main {
             });
 
             // Keep the main thread alive and update UI metrics
-            int lastCompleted = pieceManager.getCompletedPieces().cardinality();
+            long lastTotalBytes = pieceManager.getTotalBytesDownloaded();
             int totalPiecesForUi = torrent.getPieceHashes().size();
 
             while (!pieceManager.isFinished()) {
                 Thread.sleep(1000); 
                 
-                int currentlyCompleted = pieceManager.getCompletedPieces().cardinality();
+                // Calculate Exact Byte Speed
+                long currentTotalBytes = pieceManager.getTotalBytesDownloaded();
+                long bytesDownloadedThisSecond = currentTotalBytes - lastTotalBytes;
+                lastTotalBytes = currentTotalBytes;
                 
-                // Calculate Speed 
-                int piecesDownloadedThisSecond = currentlyCompleted - lastCompleted;
-                lastCompleted = currentlyCompleted;
-                long bytesPerSecond = piecesDownloadedThisSecond * torrent.getPieceLength();
-                uiModel.setSpeed((bytesPerSecond / 1024) + " KB/s");
+                if (bytesDownloadedThisSecond > 1024 * 1024) {
+                    uiModel.setSpeed(String.format("%.1f MB/s", bytesDownloadedThisSecond / (1024.0 * 1024.0)));
+                } else {
+                    uiModel.setSpeed((bytesDownloadedThisSecond / 1024) + " KB/s");
+                }
                 
                 // Calculate Progress 
+                int currentlyCompleted = pieceManager.getCompletedPieces().cardinality();
                 double progress = (double) currentlyCompleted / totalPiecesForUi;
                 uiModel.setProgress(progress);
                 uiModel.setStatus(String.format("Downloading (%.1f%%)", progress * 100));

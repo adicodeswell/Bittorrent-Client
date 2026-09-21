@@ -7,10 +7,19 @@ public class PieceManager {
     private final BitSet completedPieces = new BitSet();
     private final BitSet pendingPieces = new BitSet();
     private final int[] pieceFrequency;
+    private final java.util.concurrent.atomic.AtomicLong totalBytesDownloaded = new java.util.concurrent.atomic.AtomicLong(0);
 
     public PieceManager(int totalPieces) {
         this.totalPieces = totalPieces;
         this.pieceFrequency = new int[totalPieces];
+    }
+
+    public void recordBytesDownloaded(int bytes) {
+        totalBytesDownloaded.addAndGet(bytes);
+    }
+
+    public long getTotalBytesDownloaded() {
+        return totalBytesDownloaded.get();
     }
 
     // Called every time a peer tells us they have a piece

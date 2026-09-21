@@ -306,6 +306,9 @@ public class PeerConnection implements Runnable {
         currentBlockOffset += blockData.length;
         // checking download speed
         downloadedBytesThisPeriod += blockData.length;
+        if (pieceManager != null) {
+            pieceManager.recordBytesDownloaded(blockData.length);
+        }
 
 
         // Calculate piece size for the current piece (last piece might be smaller)
