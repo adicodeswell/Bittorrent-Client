@@ -415,7 +415,7 @@ public class PeerConnection implements Runnable {
         }
     }
 
-    private void close() {
+    public void close() {
         try {
             if (socket != null && !socket.isClosed()) socket.close();
         } catch (IOException ignored) {}

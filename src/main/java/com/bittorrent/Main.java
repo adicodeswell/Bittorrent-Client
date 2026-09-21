@@ -65,10 +65,16 @@ public class Main {
             // Choking algorithm and peer replenishment thread
             Thread.ofVirtual().start(() -> {
                 long lastTrackerUpdate = System.currentTimeMillis();
+                int tick = 0;
                 
                 while (true) {
                     try {
-                        Thread.sleep(10000); 
+                        Thread.sleep(1000); 
+                        if (uiModel != null && uiModel.isPaused()) continue;
+                        
+                        tick++;
+                        if (tick < 10) continue;
+                        tick = 0; // Run every 10 active seconds
                         
                         // -- 1. Replenish Peers if we drop too low! --
                         long aliveCount = activeConnections.stream().filter(p -> !p.isClosed()).count();
@@ -120,9 +126,28 @@ public class Main {
             // Keep the main thread alive and update UI metrics
             long lastTotalBytes = pieceManager.getTotalBytesDownloaded();
             int totalPiecesForUi = torrent.getPieceHashes().size();
+            boolean wasPaused = false;
 
             while (!pieceManager.isFinished()) {
                 Thread.sleep(1000); 
+                
+                if (uiModel != null && uiModel.isPaused()) {
+                    if (!wasPaused) {
+                        uiModel.setStatus("Paused");
+                        uiModel.setSpeed("0 KB/s");
+                        // Drop all active connections to instantly halt bandwidth
+                        for (PeerConnection p : activeConnections) p.close();
+                        activeConnections.clear();
+                        wasPaused = true;
+                    }
+                    continue;
+                }
+                
+                if (wasPaused) {
+                    uiModel.setStatus("Resuming...");
+                    lastTotalBytes = pieceManager.getTotalBytesDownloaded();
+                    wasPaused = false;
+                }
                 
                 // Calculate Exact Byte Speed
                 long currentTotalBytes = pieceManager.getTotalBytesDownloaded();

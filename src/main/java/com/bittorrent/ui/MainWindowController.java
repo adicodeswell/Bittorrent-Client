@@ -50,6 +50,35 @@ public class MainWindowController {
         torrentTable.setFixedCellSize(50);
         torrentTable.setStyle("-fx-control-inner-background: white; -fx-background-color: white; -fx-table-cell-border-color: transparent;");
 
+        // Handle Row Selection for Pause/Resume buttons
+        torrentTable.getSelectionModel().selectedItemProperty().addListener((obs, oldSel, newSel) -> {
+            if (newSel != null) {
+                btnPause.setDisable(newSel.isPaused() || newSel.progressProperty().get() >= 1.0);
+                btnResume.setDisable(!newSel.isPaused() || newSel.progressProperty().get() >= 1.0);
+            } else {
+                btnPause.setDisable(true);
+                btnResume.setDisable(true);
+            }
+        });
+
+        btnPause.setOnAction(e -> {
+            TorrentModel selected = torrentTable.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                selected.setPaused(true);
+                btnPause.setDisable(true);
+                btnResume.setDisable(false);
+            }
+        });
+
+        btnResume.setOnAction(e -> {
+            TorrentModel selected = torrentTable.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                selected.setPaused(false);
+                btnPause.setDisable(false);
+                btnResume.setDisable(true);
+            }
+        });
+
         // Set action for both "Add" buttons
         btnWelcomeAdd.setOnAction(e -> addTorrent());
         btnToolbarAdd.setOnAction(e -> addTorrent());
