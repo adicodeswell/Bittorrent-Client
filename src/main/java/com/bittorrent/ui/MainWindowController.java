@@ -85,28 +85,51 @@ public class MainWindowController {
     }
 
     private void addTorrent() {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Select a Torrent File");
-        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Torrent Files", "*.torrent"));
-        File file = fileChooser.showOpenDialog(null);
+        String os = System.getProperty("os.name").toLowerCase();
         
-        if (file != null) {
-            // Hide the Welcome Screen and show the Dashboard Table!
-            welcomePane.setVisible(false);
-            dashboardPane.setVisible(true);
-
-            TorrentModel newTorrent = new TorrentModel();
-            newTorrent.setName(file.getName());
-            torrentTable.getItems().add(newTorrent);
-            
+        if (os.contains("nix") || os.contains("nux") || os.contains("aix")) {
+            // Linux: JavaFX FileChooser is often ugly. AWT FileDialog hooks into native GTK/KDE perfectly!
             Thread.ofVirtual().start(() -> {
-                try {
-                    com.bittorrent.Main.runTorrent(file.getAbsolutePath(), newTorrent);
-                } catch(Exception ex) {
-                    newTorrent.setStatus("Error: " + ex.getMessage());
-                    ex.printStackTrace();
+                java.awt.FileDialog dialog = new java.awt.FileDialog((java.awt.Frame) null, "Select a Torrent File", java.awt.FileDialog.LOAD);
+                dialog.setFile("*.torrent");
+                dialog.setVisible(true);
+                
+                String file = dialog.getFile();
+                String dir = dialog.getDirectory();
+                
+                if (file != null && dir != null) {
+                    File selectedFile = new File(dir, file);
+                    javafx.application.Platform.runLater(() -> launchTorrentUI(selectedFile));
                 }
             });
+        } else {
+            // Windows & Mac: JavaFX FileChooser is perfectly native and safe.
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Select a Torrent File");
+            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Torrent Files", "*.torrent"));
+            File file = fileChooser.showOpenDialog(null);
+            
+            if (file != null) {
+                launchTorrentUI(file);
+            }
         }
+    }
+
+    private void launchTorrentUI(File file) {
+        welcomePane.setVisible(false);
+        dashboardPane.setVisible(true);
+
+        TorrentModel newTorrent = new TorrentModel();
+        newTorrent.setName(file.getName());
+        torrentTable.getItems().add(newTorrent);
+        
+        Thread.ofVirtual().start(() -> {
+            try {
+                com.bittorrent.Main.runTorrent(file.getAbsolutePath(), newTorrent);
+            } catch(Exception ex) {
+                newTorrent.setStatus("Error: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        });
     }
 }
