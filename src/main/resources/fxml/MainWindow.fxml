@@ -1,42 +1,54 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
+<?import javafx.scene.text.Font?>
 
-<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.bittorrent.ui.MainWindowController" prefHeight="600.0" prefWidth="900.0">
+<StackPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.bittorrent.ui.MainWindowController" prefHeight="650.0" prefWidth="1000.0" style="-fx-background-color: white;">
 
-    <!-- TOP: Toolbar -->
-    <top>
-        <ToolBar prefHeight="40.0" prefWidth="200.0" BorderPane.alignment="CENTER">
-            <items>
-                <Button fx:id="btnAddTorrent" text="Add Torrent" />
-                <Button fx:id="btnPause" text="Pause" disable="true" />
-                <Button fx:id="btnResume" text="Resume" disable="true" />
-            </items>
-        </ToolBar>
-    </top>
+    <!-- LAYER 1: THE DASHBOARD (Hidden Initially) -->
+    <BorderPane fx:id="dashboardPane" visible="false">
+        <top>
+            <ToolBar prefHeight="60.0" style="-fx-background-color: white; -fx-border-color: transparent transparent #eaeaea transparent; -fx-padding: 10 20;">
+                <items>
+                    <Button fx:id="btnToolbarAdd" text="+ Add Torrent" style="-fx-font-weight: bold; -fx-background-color: #0078D7; -fx-text-fill: white; -fx-background-radius: 5; -fx-padding: 8 15;" />
+                    <Region prefWidth="20" />
+                    <Button fx:id="btnPause" text="Pause" disable="true" style="-fx-background-color: transparent; -fx-text-fill: #666; -fx-border-color: #ccc; -fx-border-radius: 5; -fx-padding: 8 15;" />
+                    <Button fx:id="btnResume" text="Resume" disable="true" style="-fx-background-color: transparent; -fx-text-fill: #666; -fx-border-color: #ccc; -fx-border-radius: 5; -fx-padding: 8 15;" />
+                </items>
+            </ToolBar>
+        </top>
+        
+        <center>
+            <TableView fx:id="torrentTable" BorderPane.alignment="CENTER" style="-fx-background-color: white; -fx-border-color: transparent;">
+                <columns>
+                    <TableColumn fx:id="colName" prefWidth="350.0" text="Name" style="-fx-font-weight: bold; -fx-padding: 0 0 0 10;"/>
+                    <TableColumn fx:id="colSize" prefWidth="120.0" text="Size" />
+                    <TableColumn fx:id="colStatus" prefWidth="180.0" text="Status" />
+                    <TableColumn fx:id="colProgress" prefWidth="200.0" text="Progress" />
+                    <TableColumn fx:id="colSpeed" prefWidth="130.0" text="Speed" />
+                </columns>
+                <columnResizePolicy>
+                    <TableView fx:constant="CONSTRAINED_RESIZE_POLICY" />
+                </columnResizePolicy>
+            </TableView>
+        </center>
+        
+        <bottom>
+            <HBox spacing="10" style="-fx-background-color: #f9f9f9; -fx-border-color: #eaeaea; -fx-border-width: 1 0 0 0;">
+                <padding><Insets top="8" right="20" bottom="8" left="20"/></padding>
+                <Label text="BitTorrent Engine v1.0" style="-fx-text-fill: #888888;" />
+                <Region HBox.hgrow="ALWAYS" />
+                <Label fx:id="lblGlobalStatus" text="Idle" style="-fx-text-fill: #888888; -fx-font-weight: bold;" />
+            </HBox>
+        </bottom>
+    </BorderPane>
 
-    <!-- CENTER: Torrent List -->
-    <center>
-        <TableView fx:id="torrentTable" prefHeight="200.0" prefWidth="200.0" BorderPane.alignment="CENTER">
-            <columns>
-                <TableColumn fx:id="colName" prefWidth="300.0" text="Name" />
-                <TableColumn fx:id="colSize" prefWidth="100.0" text="Size" />
-                <TableColumn fx:id="colStatus" prefWidth="150.0" text="Status" />
-                <TableColumn fx:id="colProgress" prefWidth="200.0" text="Progress" />
-                <TableColumn fx:id="colSpeed" prefWidth="120.0" text="Speed" />
-            </columns>
-        </TableView>
-    </center>
+    <!-- LAYER 2: THE WELCOME SCREEN (Shown Initially) -->
+    <VBox fx:id="welcomePane" alignment="CENTER" spacing="25" style="-fx-background-color: white;">
+        <Label text="BitTorrent Engine" style="-fx-font-size: 38px; -fx-font-weight: bold; -fx-text-fill: #222222;" />
+        <Label text="Start downloading files securely over the peer-to-peer network." style="-fx-font-size: 16px; -fx-text-fill: #777777;" />
+        <Button fx:id="btnWelcomeAdd" text="Add Torrent File" prefWidth="240" prefHeight="55" style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-background-color: #0078D7; -fx-text-fill: white; -fx-background-radius: 30; -fx-cursor: hand;" />
+    </VBox>
 
-    <!-- BOTTOM: Global Status -->
-    <bottom>
-        <HBox spacing="10" BorderPane.alignment="CENTER">
-            <padding><Insets top="5" right="10" bottom="5" left="10"/></padding>
-            <Label text="BitTorrent Engine v1.0" />
-            <Region HBox.hgrow="ALWAYS" />
-            <Label fx:id="lblGlobalStatus" text="Idle" />
-        </HBox>
-    </bottom>
-</BorderPane>
+</StackPane>

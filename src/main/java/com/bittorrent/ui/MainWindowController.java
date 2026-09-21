@@ -5,15 +5,24 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import java.io.File;
 
 public class MainWindowController {
 
-    @FXML private Button btnAddTorrent;
+    // Layout Panes
+    @FXML private BorderPane dashboardPane;
+    @FXML private VBox welcomePane;
+
+    // Buttons
+    @FXML private Button btnWelcomeAdd;
+    @FXML private Button btnToolbarAdd;
     @FXML private Button btnPause;
     @FXML private Button btnResume;
     
+    // Table
     @FXML private TableView<TorrentModel> torrentTable;
     @FXML private TableColumn<TorrentModel, String> colName;
     @FXML private TableColumn<TorrentModel, String> colSize;
@@ -21,6 +30,7 @@ public class MainWindowController {
     @FXML private TableColumn<TorrentModel, Double> colProgress;
     @FXML private TableColumn<TorrentModel, String> colSpeed;
     
+    // Status
     @FXML private Label lblGlobalStatus;
 
     @FXML
@@ -33,31 +43,41 @@ public class MainWindowController {
         colStatus.setCellValueFactory(cellData -> cellData.getValue().statusProperty());
         colSpeed.setCellValueFactory(cellData -> cellData.getValue().speedProperty());
         
-        // Render the progress as a beautiful graphical progress bar!
         colProgress.setCellValueFactory(cellData -> cellData.getValue().progressProperty().asObject());
         colProgress.setCellFactory(javafx.scene.control.cell.ProgressBarTableCell.forTableColumn());
 
-        // 2. Open File Explorer when clicked
-        btnAddTorrent.setOnAction(e -> {
-            FileChooser fileChooser = new FileChooser();
-            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Torrent Files", "*.torrent"));
-            File file = fileChooser.showOpenDialog(null);
+        // Modernize the Table Look (Taller rows, hide empty rows)
+        torrentTable.setFixedCellSize(50);
+        torrentTable.setStyle("-fx-control-inner-background: white; -fx-background-color: white; -fx-table-cell-border-color: transparent;");
+
+        // Set action for both "Add" buttons
+        btnWelcomeAdd.setOnAction(e -> addTorrent());
+        btnToolbarAdd.setOnAction(e -> addTorrent());
+    }
+
+    private void addTorrent() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Select a Torrent File");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Torrent Files", "*.torrent"));
+        File file = fileChooser.showOpenDialog(null);
+        
+        if (file != null) {
+            // Hide the Welcome Screen and show the Dashboard Table!
+            welcomePane.setVisible(false);
+            dashboardPane.setVisible(true);
+
+            TorrentModel newTorrent = new TorrentModel();
+            newTorrent.setName(file.getName());
+            torrentTable.getItems().add(newTorrent);
             
-            if (file != null) {
-                TorrentModel newTorrent = new TorrentModel();
-                newTorrent.setName(file.getName());
-                torrentTable.getItems().add(newTorrent); // Adds it to the UI
-                
-                // 3. Launch the engine in a background thread!
-                Thread.ofVirtual().start(() -> {
-                    try {
-                        com.bittorrent.Main.runTorrent(file.getAbsolutePath(), newTorrent);
-                    } catch(Exception ex) {
-                        newTorrent.setStatus("Error: " + ex.getMessage());
-                        ex.printStackTrace();
-                    }
-                });
-            }
-        });
+            Thread.ofVirtual().start(() -> {
+                try {
+                    com.bittorrent.Main.runTorrent(file.getAbsolutePath(), newTorrent);
+                } catch(Exception ex) {
+                    newTorrent.setStatus("Error: " + ex.getMessage());
+                    ex.printStackTrace();
+                }
+            });
+        }
     }
 }
