@@ -15,6 +15,19 @@
     </properties>
 
     <dependencies>
+        <!-- JavaFX Controls -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>21.0.1</version>
+        </dependency>
+        <!-- JavaFX FXML -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>21.0.1</version>
+        </dependency>
+        
         <!-- JUnit 5 for Unit Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -37,6 +50,15 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.1.2</version>
+            </plugin>
+            <!-- JavaFX Maven Plugin for easy launching -->
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <configuration>
+                    <mainClass>com.bittorrent.ui.AppLauncher</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>

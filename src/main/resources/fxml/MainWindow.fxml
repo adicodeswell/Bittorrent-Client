@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.bittorrent.ui.MainWindowController" prefHeight="600.0" prefWidth="900.0">
+
+    <!-- TOP: Toolbar -->
+    <top>
+        <ToolBar prefHeight="40.0" prefWidth="200.0" BorderPane.alignment="CENTER">
+            <items>
+                <Button fx:id="btnAddTorrent" text="Add Torrent" />
+                <Button fx:id="btnPause" text="Pause" disable="true" />
+                <Button fx:id="btnResume" text="Resume" disable="true" />
+            </items>
+        </ToolBar>
+    </top>
+
+    <!-- CENTER: Torrent List -->
+    <center>
+        <TableView fx:id="torrentTable" prefHeight="200.0" prefWidth="200.0" BorderPane.alignment="CENTER">
+            <columns>
+                <TableColumn fx:id="colName" prefWidth="300.0" text="Name" />
+                <TableColumn fx:id="colSize" prefWidth="100.0" text="Size" />
+                <TableColumn fx:id="colStatus" prefWidth="150.0" text="Status" />
+                <TableColumn fx:id="colProgress" prefWidth="200.0" text="Progress" />
+                <TableColumn fx:id="colSpeed" prefWidth="120.0" text="Speed" />
+            </columns>
+        </TableView>
+    </center>
+
+    <!-- BOTTOM: Global Status -->
+    <bottom>
+        <HBox spacing="10" BorderPane.alignment="CENTER">
+            <padding><Insets top="5" right="10" bottom="5" left="10"/></padding>
+            <Label text="BitTorrent Engine v1.0" />
+            <Region HBox.hgrow="ALWAYS" />
+            <Label fx:id="lblGlobalStatus" text="Idle" />
+        </HBox>
+    </bottom>
+</BorderPane>
