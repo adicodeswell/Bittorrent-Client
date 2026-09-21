@@ -38,14 +38,7 @@ jobs:
         run: mvn clean package -DskipTests
 
       - name: Package Native Application
-        run: |
-          jpackage \
-            --type ${{ matrix.jpackage_type }} \
-            --name "BitTorrentClient" \
-            --input target/ \
-            --main-jar bittorrent-client-1.0-SNAPSHOT.jar \
-            --main-class com.bittorrent.ui.AppLauncher \
-            --dest dist
+        run: jpackage --type ${{ matrix.jpackage_type }} --name "BitTorrentClient" --input target/ --main-jar bittorrent-client-1.0-SNAPSHOT.jar --main-class com.bittorrent.ui.AppLauncher --dest dist
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
