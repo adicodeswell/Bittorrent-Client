@@ -88,18 +88,43 @@ public class MainWindowController {
         String os = System.getProperty("os.name").toLowerCase();
         
         if (os.contains("nix") || os.contains("nux") || os.contains("aix")) {
-            // Linux: JavaFX FileChooser is often ugly. AWT FileDialog hooks into native GTK/KDE perfectly!
+            // Linux: Try to force pure native KDE (Dolphin) or GNOME file pickers via CLI, fallback to AWT
             Thread.ofVirtual().start(() -> {
-                java.awt.FileDialog dialog = new java.awt.FileDialog((java.awt.Frame) null, "Select a Torrent File", java.awt.FileDialog.LOAD);
-                dialog.setFile("*.torrent");
-                dialog.setVisible(true);
+                File selectedFile = null;
+                boolean dialogAttempted = false;
                 
-                String file = dialog.getFile();
-                String dir = dialog.getDirectory();
+                try {
+                    Process p = new ProcessBuilder("kdialog", "--getopenfilename", ".", "*.torrent").start();
+                    dialogAttempted = true; // Successfully launched!
+                    if (p.waitFor() == 0) {
+                        String path = new String(p.getInputStream().readAllBytes()).trim();
+                        if (!path.isEmpty()) selectedFile = new File(path);
+                    }
+                } catch (Exception ignored) {}
+
+                if (!dialogAttempted) {
+                    try {
+                        Process p = new ProcessBuilder("zenity", "--file-selection", "--file-filter=*.torrent").start();
+                        dialogAttempted = true;
+                        if (p.waitFor() == 0) {
+                            String path = new String(p.getInputStream().readAllBytes()).trim();
+                            if (!path.isEmpty()) selectedFile = new File(path);
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                if (!dialogAttempted) {
+                    java.awt.FileDialog dialog = new java.awt.FileDialog((java.awt.Frame) null, "Select a Torrent File", java.awt.FileDialog.LOAD);
+                    dialog.setFile("*.torrent");
+                    dialog.setVisible(true);
+                    String file = dialog.getFile();
+                    String dir = dialog.getDirectory();
+                    if (file != null && dir != null) selectedFile = new File(dir, file);
+                }
                 
-                if (file != null && dir != null) {
-                    File selectedFile = new File(dir, file);
-                    javafx.application.Platform.runLater(() -> launchTorrentUI(selectedFile));
+                if (selectedFile != null) {
+                    final File finalFile = selectedFile;
+                    javafx.application.Platform.runLater(() -> launchTorrentUI(finalFile));
                 }
             });
         } else {
