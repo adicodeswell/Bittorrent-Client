@@ -4,24 +4,39 @@ on:
   push:
     tags:
       - 'v*' # Trigger only when you push a tag like v1.0.0
-  workflow_dispatch: # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+# FIX 1: Grant permissions so the bot can actually create the Release (fixes 403 error)
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
+    name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          - os: windows-latest
-            artifact_name: BitTorrentClient-Windows.exe
+          - name: Windows Installer
+            os: windows-latest
+            artifact_name: windows-installer
             jpackage_type: exe
-          - os: macos-latest
-            artifact_name: BitTorrentClient-Mac.dmg
+          - name: Windows Portable (ZIP)
+            os: windows-latest
+            artifact_name: windows-portable
+            jpackage_type: app-image
+          - name: Mac Installer
+            os: macos-latest
+            artifact_name: mac-installer
             jpackage_type: dmg
-          - os: ubuntu-latest
-            artifact_name: BitTorrentClient-Linux.deb
+          - name: Linux Debian/Ubuntu
+            os: ubuntu-latest
+            artifact_name: linux-installer
             jpackage_type: deb
+          - name: Linux Portable (Arch/Fedora)
+            os: ubuntu-latest
+            artifact_name: linux-portable
+            jpackage_type: app-image
 
     steps:
       - name: Checkout Code
@@ -40,6 +55,19 @@ jobs:
       - name: Package Native Application
         run: jpackage --type ${{ matrix.jpackage_type }} --name "BitTorrentClient" --input target/ --main-jar bittorrent-client-1.0-SNAPSHOT.jar --main-class com.bittorrent.ui.AppLauncher --dest dist
 
+      # FIX 2: Compress portable directories into a single file so they can be uploaded to GitHub Releases
+      - name: Compress Portable Windows
+        if: matrix.os == 'windows-latest' && matrix.jpackage_type == 'app-image'
+        run: |
+          Compress-Archive -Path dist\BitTorrentClient\* -DestinationPath dist\BitTorrentClient-Windows-Portable.zip
+          Remove-Item -Recurse -Force dist\BitTorrentClient
+
+      - name: Compress Portable Linux
+        if: matrix.os == 'ubuntu-latest' && matrix.jpackage_type == 'app-image'
+        run: |
+          tar -czvf dist/BitTorrentClient-Linux-Portable.tar.gz -C dist/BitTorrentClient .
+          rm -rf dist/BitTorrentClient
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -57,11 +85,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
 
+      # FIX 3: Upgraded to v2 to fix the Node 20 deprecation warnings
       - name: Create Release and Upload Assets
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: artifacts/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
