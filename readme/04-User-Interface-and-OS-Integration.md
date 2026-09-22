@@ -1,24 +1,34 @@
 # UI & OS Integration
 
-This project is built using **JavaFX**, but it avoids the traditional pitfalls of Java desktop applications by aggressively tying into native OS features.
+This project is built using **JavaFX**, but it avoids the traditional pitfalls of Java desktop applications by aggressively tying into native OS features to guarantee a professional, native feel.
 
-## 1. UI Architecture
-The UI layout is defined in `src/main/resources/fxml/MainWindow.fxml` using a `StackPane` to toggle between a "Welcome Screen" and the "Dashboard Table". 
+## 1. UI Architecture & Data Binding
+The UI layout is defined in `src/main/resources/fxml/MainWindow.fxml`. It uses a `StackPane` to toggle visibility between the initial "Welcome Screen" and the "Dashboard Table". 
 
-### Data Binding (`TorrentModel.java`)
 Because the backend network engine (`Main.java`) runs on Virtual Threads, it is strictly forbidden from directly updating the JavaFX UI elements (which causes immediate thread-safety crashes).
 Instead, `Main.java` interacts entirely with a `TorrentModel` object. The `TorrentModel` uses `Platform.runLater()` to safely push UI updates (like speed strings and progress doubles) back to the main Application Thread.
+
+```java
+// Safely updating the UI from a background Virtual Thread
+public void setProgress(double p) { 
+    Platform.runLater(() -> progress.set(p)); 
+}
+```
 
 ## 2. 100% Native File Pickers
 By default, if you launch a JavaFX `FileChooser` on a Linux distribution, it often falls back to a legacy, blocky, generic Java popup that ruins the native feel of the application. 
 
-To solve this, `MainWindowController.java` utilizes a highly customized bridging sequence when you click "Add Torrent File":
-1. **OS Detection:** It detects if you are on Windows, macOS, or Linux.
-2. **Windows/Mac:** It securely utilizes the default `javafx.stage.FileChooser`, which hooks perfectly into the native Microsoft and Apple file explorers.
-3. **Linux - KDE Dolphin:** It dynamically spawns a hidden CLI `ProcessBuilder` to check if `kdialog` is installed. If so, it leverages it to open a pure, native KDE Dolphin dialog.
-4. **Linux - GNOME Zenity:** If `kdialog` is missing, it checks for `zenity`, launching a pure GTK native file dialog.
-5. **Linux - AWT Fallback:** As a last resort, it falls back to Java's `java.awt.FileDialog`, which generally binds to GTK much better than JavaFX's native implementation.
+To solve this, `MainWindowController.java` utilizes a highly intelligent, cascading bridge sequence when you click "Add Torrent File". It forces the application to use the exact native file manager installed on your system.
 
-## 3. Bypassing Write-Protection
-On Windows, applications installed via `.exe` are placed in `C:\Program Files\`, which is heavily write-protected by Windows Administrator protocols. 
-To prevent the BitTorrent engine from silently crashing when trying to save a 2GB movie to `Program Files`, the client dynamically queries `System.getProperty("user.home") + "/Downloads"` to ensure the data is dumped safely into the user's personal Downloads folder across all OS environments.
+*Note: We included a boolean flag in the code to ensure that if a user clicks "Cancel" on Dolphin, it gracefully exits rather than cascading down to Zenity and AWT.*
+
+## 3. Bypassing Windows Write-Protection
+On Windows, applications installed via an `.exe` installer are placed in `C:\Program Files\`, which is heavily write-protected by Windows Administrator protocols to prevent viruses. 
+
+If our app attempted to save a 2GB movie directly into its installation directory (the current working directory `.`), Windows would instantly block the file I/O operations, dropping the download speed to 0 KB/s.
+
+To prevent this, the client dynamically queries the OS for the user's personal Downloads folder and defaults the `FileManager` save path there.
+```java
+String downloadsDir = System.getProperty("user.home") + File.separator + "Downloads";
+FileManager fileManager = new FileManager(downloadsDir, torrent);
+```
