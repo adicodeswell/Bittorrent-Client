@@ -12,22 +12,6 @@ Located in `.github/workflows/build-and-release.yml`, the automated pipeline tri
 
 It uses a build matrix to simultaneously boot up three Microsoft cloud servers. Because JavaFX native libraries (`.dll`, `.dylib`, `.so`) are platform-specific, compiling the code directly on the target OS guarantees the Fat JAR contains the correct native hooks.
 
-```mermaid
-graph TD
-    A[Git Tag Pushed] --> B(GitHub Actions Matrix)
-    
-    B --> W[windows-latest]
-    B --> M[macos-latest]
-    B --> U[ubuntu-latest]
-    
-    W --> |jpackage| W1[Windows .exe Installer]
-    W --> |jpackage| W2[Windows .zip Portable]
-    
-    M --> |jpackage| M1[macOS .dmg Installer]
-    
-    U --> |jpackage| U1[Ubuntu .deb Installer]
-    U --> |jpackage| U2[Arch/Fedora .tar.gz Portable]
-```
 
 ## 3. Java `jpackage` 
 Once the Fat JAR is compiled on the cloud server, the pipeline executes Java's built-in `jpackage` utility.

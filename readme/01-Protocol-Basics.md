@@ -8,13 +8,6 @@ In a traditional client-server model (like downloading a file from a website), y
 
 BitTorrent is a **Peer-to-Peer (P2P)** protocol. A large file (like a 2GB movie) is mathematically chopped up into hundreds of small chunks called **Pieces** (usually 256 KB or 512 KB each). Instead of downloading from a central server, you connect to dozens of other ordinary computer users (called **Peers**) who are downloading the same file. 
 
-```mermaid
-graph TD
-    T[Central Tracker Server] -.->|Provides IP Addresses| C[Our Client]
-    C <==>|Downloads Piece 1| P1[Peer A in Germany]
-    C <==>|Downloads Piece 2| P2[Peer B in Japan]
-    C <==>|Uploads Piece 1| P3[Peer C in Brazil]
-```
 
 This creates a highly resilient **Swarm**. The more people downloading the file, the faster the download speeds become.
 

@@ -4,18 +4,6 @@ This project abandons traditional, heavy Thread Pools in favor of **Java 21 Virt
 
 Here is a visual breakdown of how the components talk to each other:
 
-```mermaid
-graph TD
-    M[Main Engine] -->|Spawns Virtual Threads| V[Peer Connections]
-    V -->|Socket 1| P1[Peer 1]
-    V -->|Socket 2| P2[Peer 2]
-    
-    V -.->|Records downloaded bytes| PM[PieceManager]
-    V -.->|Writes raw bytes| FM[FileManager]
-    
-    PM -.->|Updates progress/speed| UI[JavaFX Dashboard]
-    M -->|Monitors peer health| V
-```
 
 ## 1. Engine Entry Point (`Main.java`)
 `Main.java` is the orchestrator. When the user selects a `.torrent` file, `Main.runTorrent()` is triggered.

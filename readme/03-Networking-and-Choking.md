@@ -5,31 +5,6 @@ The networking layer (`PeerConnection.java`) is where the actual BitTorrent prot
 ## 1. Peer Connection Lifecycle
 Every IP address received from the tracker is handed to a brand new `PeerConnection` object running in a Virtual Thread. Here is the strict sequence of messages they must exchange before any file data can be downloaded:
 
-```mermaid
-sequenceDiagram
-    participant C as Our Client
-    participant P as Peer
-    
-    C->>P: Handshake (Info Hash + Peer ID)
-    P->>C: Handshake (Info Hash + Peer ID)
-    
-    P->>C: BITFIELD (Binary array of pieces they have)
-    
-    Note over C,P: We realize they have pieces we need!
-    C->>P: INTERESTED
-    
-    Note over C,P: Peer decides we are worthy...
-    P->>C: UNCHOKE
-    
-    loop Aggressive Pipelining
-        C->>P: REQUEST (Block 1)
-        C->>P: REQUEST (Block 2)
-        C->>P: REQUEST (Block ... 20)
-    end
-    
-    P->>C: PIECE (Block 1 Data)
-    C->>P: REQUEST (Block 21)
-```
 
 ## 2. Aggressive Pipelining (`MAX_PIPELINE = 20`)
 A naive, beginner BitTorrent client requests a 16 KB block, waits for it to arrive, and then requests the next one. If the peer is located across the world and has a 100ms ping latency, your maximum speed is capped at a dismal 160 KB/s regardless of how fast your internet is.
